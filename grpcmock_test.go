@@ -41,7 +41,7 @@ func TestRegister(t *testing.T) {
 			t.Errorf("unexpected requests: %v", reqs)
 		}
 		got := reqs[0]
-		if got.Name != "qawatake" {
+		if got.Message.Name != "qawatake" {
 			t.Errorf("unexpected request: %v", got)
 		}
 	}
@@ -124,7 +124,7 @@ func Register_multiple_methods(t *testing.T) {
 			t.Errorf("unexpected requests: %v", reqs)
 		}
 		got := reqs[0]
-		if got.Name != "qawatake" {
+		if got.Message.Name != "qawatake" {
 			t.Errorf("unexpected request: %v", got)
 		}
 	}
@@ -134,7 +134,7 @@ func Register_multiple_methods(t *testing.T) {
 			t.Errorf("unexpected requests: %v", reqs)
 		}
 		got := reqs[0]
-		if got.Latitude != 1 || got.Longitude != 2 {
+		if got.Message.Latitude != 1 || got.Message.Longitude != 2 {
 			t.Errorf("unexpected request: %v", got)
 		}
 	}
@@ -167,7 +167,7 @@ func TestStatus(t *testing.T) {
 			t.Errorf("unexpected requests: %v", reqs)
 		}
 		got := reqs[0]
-		if got.Name != "qawatake" {
+		if got.Message.Name != "qawatake" {
 			t.Errorf("unexpected request: %v", got)
 		}
 	}

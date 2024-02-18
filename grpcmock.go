@@ -11,6 +11,7 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -24,7 +25,7 @@ type Server struct {
 	// tlsc              *tls.Config
 	// cacert            []byte
 	cc       *grpc.ClientConn
-	requests []*dynamicpb.Message
+	requests []*Request[*dynamicpb.Message]
 	// healthCheck       bool
 	// disableReflection bool
 	// status            serverStatus
@@ -49,7 +50,7 @@ type matcher struct {
 	responseType protoreflect.ProtoMessage
 	// matchFuncs   []matchFunc
 	handler  handlerFunc
-	requests []*dynamicpb.Message
+	requests []*Request[*dynamicpb.Message]
 	t        TB
 	mu       sync.RWMutex
 }
@@ -175,15 +176,20 @@ func (m *matcherx[I, O]) Status(s *status.Status) *matcherx[I, O] {
 }
 
 // Requests returns the requests received by the mock gRPC server.
-func (s *Server) Requests() []*dynamicpb.Message {
-	return s.requests
+func (s *Server) Requests() []Request[*dynamicpb.Message] {
+	return s.Requests()
+}
+
+type Request[I protoreflect.ProtoMessage] struct {
+	Message I
+	Headers metadata.MD
 }
 
 // Requests returns the requests received by the matcher.
-func (m *matcherx[I, O]) Requests() []I {
-	ret := make([]I, 0, len(m.matcher.requests))
+func (m *matcherx[I, O]) Requests() []*Request[I] {
+	ret := make([]*Request[I], 0, len(m.matcher.requests))
 	for _, r := range m.matcher.requests {
-		b, err := protojson.Marshal(r)
+		b, err := protojson.Marshal(r.Message)
 		if err != nil {
 			m.matcher.t.Error(err)
 			return nil
@@ -195,22 +201,23 @@ func (m *matcherx[I, O]) Requests() []I {
 			m.matcher.t.Error(err)
 			return nil
 		}
-		ret = append(ret, in)
+		ret = append(ret, &Request[I]{Message: in, Headers: r.Headers})
 	}
 	return ret
 }
 
 func (s *Server) newUnaryHandler(m *matcher) func(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	return func(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+		md, _ := metadata.FromIncomingContext(ctx)
 		in := dynamicpb.NewMessage(m.requestType.ProtoReflect().Descriptor())
 		if err := dec(in); err != nil {
 			return nil, err
 		}
 		s.mu.Lock()
-		s.requests = append(s.requests, in)
+		s.requests = append(s.requests, &Request[*dynamicpb.Message]{Message: in, Headers: md})
 		s.mu.Unlock()
 		m.mu.Lock()
-		m.requests = append(m.requests, in)
+		m.requests = append(m.requests, &Request[*dynamicpb.Message]{Message: in, Headers: md})
 		m.mu.Unlock()
 		return m.handler(in)
 	}
