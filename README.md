@@ -2,6 +2,7 @@
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/qawatake/grpcmock.svg)](https://pkg.go.dev/github.com/qawatake/grpcmock)
 [![test](https://github.com/qawatake/grpcmock/actions/workflows/test.yaml/badge.svg)](https://github.com/qawatake/grpcmock/actions/workflows/test.yaml)
+[![codecov](https://codecov.io/gh/qawatake/grpcmock/graph/badge.svg?token=iBMN98cHlc)](https://codecov.io/gh/qawatake/grpcmock)
 
 grpcmock provides a mock gRPC server from a generated gRPC client code.
 
