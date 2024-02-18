@@ -87,6 +87,10 @@ func (s *Server) ClientConn() *grpc.ClientConn {
 	return s.cc
 }
 
+func (s *Server) Addr() string {
+	return s.listener.Addr().String()
+}
+
 func (s *Server) Start() {
 	go s.server.Serve(s.listener)
 	// TODO: wait for ready
