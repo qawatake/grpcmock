@@ -64,22 +64,17 @@ type handlerFunc func(r protoreflect.ProtoMessage) protoreflect.ProtoMessage
 
 func NewServer(t TB) *Server {
 	t.Helper()
-	// s := &Server{}
-	// s.server = grpc.NewServer()
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
 		return nil
 	}
-	// s.listener = lis
-	// s.t = t
 	return &Server{
 		server:   grpc.NewServer(),
 		listener: lis,
 		t:        t,
 		matchers: make(map[string]*matcher),
 	}
-	// return s
 }
 
 func (s *Server) Start() {
@@ -110,7 +105,6 @@ func (s *Server) Register(serviceName, methodName string, reqType protoreflect.P
 			return dynamicpb.NewMessage(r.ProtoReflect().Descriptor())
 		},
 	}
-	// s.matchers = append(s.matchers, m)
 	s.matchers[serviceName+methodName] = m
 	s.server.RegisterService(
 		&grpc.ServiceDesc{
@@ -149,20 +143,8 @@ func (m *matcher) Requests() []*dynamicpb.Message {
 	return m.requests
 }
 
-// func (s *Server) Method(serviceName, methodName string, reqType protoreflect.ProtoMessage, respType protoreflect.ProtoMessage) *matcher {
-// 	m := &matcher{
-// 		t: s.t,
-// 		handler: func(r protoreflect.ProtoMessage) protoreflect.ProtoMessage {
-// 			return dynamicpb.NewMessage(r.ProtoReflect().Descriptor())
-// 		},
-// 	}
-// 	s.matchers = append(s.matchers, m)
-// 	return m
-// }
-
 func (s *Server) newUnaryHandler(m *matcher) func(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	return func(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-		// in := dynamicpb.NewMessage(s.methodInfo.request.ProtoReflect().Descriptor())
 		in := dynamicpb.NewMessage(m.requestType.ProtoReflect().Descriptor())
 		if err := dec(in); err != nil {
 			return nil, err
@@ -174,12 +156,6 @@ func (s *Server) newUnaryHandler(m *matcher) func(srv interface{}, ctx context.C
 		m.requests = append(m.requests, in)
 		m.mu.Unlock()
 		return m.handler(in), nil
-		// out := dynamicpb.NewMessage(m.requestType.ProtoReflect().Descriptor())
-		// // out := dynamicpb.NewMessage(s.methodInfo.response.ProtoReflect().Descriptor())
-		// if err := protojson.Unmarshal([]byte(`{"name":"hello"}`), out); err != nil {
-		// 	return nil, err
-		// }
-		// return out, nil
 	}
 }
 
