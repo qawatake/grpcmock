@@ -72,10 +72,6 @@ func NewServer(t TB) *Server {
 	}
 }
 
-func (s *Server) Start() {
-	go s.server.Serve(s.listener)
-}
-
 func (s *Server) ClientConn() *grpc.ClientConn {
 	if s.cc != nil {
 		return s.cc
@@ -89,7 +85,16 @@ func (s *Server) ClientConn() *grpc.ClientConn {
 	return s.cc
 }
 
+func (s *Server) Start() {
+	go s.server.Serve(s.listener)
+	// TODO: wait for ready
+}
+
 // Register registers a gRPC method to the internal gRPC server.
+// Register must be called before Server.Start.
+//
+// Example:
+// Register(ts, "/hello.GrpcTestService/Hello", hello.GrpcTestServiceClient.Hello)
 func Register[R any, X, Y protoreflect.ProtoMessage](s *Server, fullMethodName string, method func(R, context.Context, X, ...grpc.CallOption) (Y, error)) *matcherx[X, Y] {
 	s.t.Helper()
 	var req X
