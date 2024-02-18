@@ -9,7 +9,7 @@ func TestClient(t *testing.T) {
   client := hello.NewGrpcTestServiceClient(conn)
 
   // arrange
-  helloRPC := grpcmock.Register(ts, hello.GrpcTestService_Hello_FullMethodName, hello.GrpcTestServiceClient.Hello).
+  helloRPC := grpcmock.Register(ts, "/hello.GrpcTestService/Hello", hello.GrpcTestServiceClient.Hello).
     Response(&hello.HelloResponse{
       Message: "Hello, world!",
     })
