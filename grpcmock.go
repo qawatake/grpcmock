@@ -120,14 +120,6 @@ func (s *Server) Register(serviceName, methodName string, reqType protoreflect.P
 	return m
 }
 
-func (s *Server) Requests() []*dynamicpb.Message {
-	return s.requests
-}
-
-func (s *Server) Method(serviceName, methodName string) *matcher {
-	return s.matchers[serviceName+methodName]
-}
-
 func (m *matcher) Response(message protoreflect.ProtoMessage) *matcher {
 	prev := m.handler
 	m.handler = func(r protoreflect.ProtoMessage) protoreflect.ProtoMessage {
@@ -137,6 +129,19 @@ func (m *matcher) Response(message protoreflect.ProtoMessage) *matcher {
 		return message
 	}
 	return m
+}
+
+func (s *Server) Method(serviceName, methodName string) *matcher {
+	m, ok := s.matchers[serviceName+methodName]
+	if !ok {
+		s.t.Errorf("method %s/%s is not registered", serviceName, methodName)
+		return nil
+	}
+	return m
+}
+
+func (s *Server) Requests() []*dynamicpb.Message {
+	return s.requests
 }
 
 func (m *matcher) Requests() []*dynamicpb.Message {

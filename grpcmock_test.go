@@ -2,12 +2,12 @@ package grpcmock_test
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"testing"
 
 	"github.com/qawatake/grpcmock"
 	"github.com/qawatake/grpcmock/testdata/hello"
+	"github.com/qawatake/grpcmock/testdata/routeguide"
 )
 
 func TestServer(t *testing.T) {
@@ -72,10 +72,64 @@ func TestServerConcurrency(t *testing.T) {
 
 	// assert
 	{
-		fmt.Println(len(ts.Requests()))
 		reqs := grpcmock.MapRequests[hello.HelloRequest](t, ts.Requests())
 		if len(reqs) != 100 {
 			t.Errorf("unexpected requests: %v", reqs)
+		}
+	}
+}
+
+func TestServerMethod(t *testing.T) {
+	ts := grpcmock.NewServer(t)
+	conn := ts.ClientConn()
+	helloClient := hello.NewGrpcTestServiceClient(conn)
+	routeGuideClient := routeguide.NewRouteGuideClient(conn)
+
+	// arrange
+	ts.Register("hello.GrpcTestService", "Hello", new(hello.HelloRequest), new(hello.HelloResponse)).Response(&hello.HelloResponse{
+		Message: "Hello, world!",
+	})
+	ts.Register("routeguide.RouteGuide", "GetFeature", new(routeguide.Point), new(routeguide.Feature)).Response(&routeguide.Feature{
+		Name: "test",
+	})
+	ts.Start()
+
+	// act
+	ctx := context.Background()
+	helloRes, err1 := helloClient.Hello(ctx, &hello.HelloRequest{Name: "qawatake"})
+	routeRes, err2 := routeGuideClient.GetFeature(ctx, &routeguide.Point{Latitude: 1, Longitude: 2})
+
+	// assert
+	if err1 != nil {
+		t.Fatal(err2)
+	}
+	if helloRes.Message != "Hello, world!" {
+		t.Errorf("unexpected response: %s", helloRes.Message)
+	}
+	if err2 != nil {
+		t.Fatal(err2)
+	}
+	if routeRes.Name != "test" {
+		t.Errorf("unexpected response: %s", routeRes.Name)
+	}
+	{
+		reqs := grpcmock.MapRequests[hello.HelloRequest](t, ts.Method("hello.GrpcTestService", "Hello").Requests())
+		if len(reqs) != 1 {
+			t.Errorf("unexpected requests: %v", reqs)
+		}
+		got := reqs[0]
+		if got.Name != "qawatake" {
+			t.Errorf("unexpected request: %v", got)
+		}
+	}
+	{
+		reqs := grpcmock.MapRequests[routeguide.Point](t, ts.Method("routeguide.RouteGuide", "GetFeature").Requests())
+		if len(reqs) != 1 {
+			t.Errorf("unexpected requests: %v", reqs)
+		}
+		got := reqs[0]
+		if got.Latitude != 1 || got.Longitude != 2 {
+			t.Errorf("unexpected request: %v", got)
 		}
 	}
 }
