@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -88,34 +89,22 @@ func (s *Server) ClientConn() *grpc.ClientConn {
 	return s.cc
 }
 
-// func (s *Server) RegisterX(fullMethodName string, fn any) *matcher {
-// 	hoge(s.t, fn)
-// 	return nil
-// }
+// Register registers a gRPC method to the internal gRPC server.
+func Register[R any, X, Y protoreflect.ProtoMessage](s *Server, fullMethodName string, method func(R, context.Context, X, ...grpc.CallOption) (Y, error)) *matcherx[X, Y] {
+	s.t.Helper()
+	var req X
+	var res Y
+	m := s.register(fullMethodName, req, res)
+	return &matcherx[X, Y]{matcher: m}
+}
 
-// func hoge(t TB, fn any) (req, res protoreflect.ProtoMessage) {
-// 	t.Helper()
-// 	fnType := reflect.TypeOf(fn)
-// 	if fnType.Kind() != reflect.Func {
-// 		t.Fatal("fn must be a function")
-// 	}
-// 	if fnType.NumIn() < 2 {
-// 		t.Fatal("fn must have at least 2 fields")
-// 	}
-// 	arg0 := fnType.In(0)
-// 	reflect.TypeFor().Implements(arg0)
-// 	fmt.Printf("😀%+v\n", arg0.Kind())
-// 	return nil, nil
-// 	// fnType.Elem().FieldByIndex([]int{0})
-// 	// if fnType.NumOut() != 2 {
-// 	// 	t.Fatal("fn must have 2 return values")
-// 	// }
-// 	// if fnType.In(0).Kind() != reflect.Int || fnType.Out(0) != reflect.TypeOf((*error)(nil)).Elem() {
-// 	// 	return false
-// 	// }
-// }
-
-func (s *Server) Register(fullMethodName string, reqType protoreflect.ProtoMessage, respType protoreflect.ProtoMessage) *matcher {
+// register registers a root matcher to the internal gRPC server.
+//
+// Example:
+// fullMethodName: "/hello.GrpcTestService/Hello"
+// reqType *hello.HelloRequest
+// respType *hello.HelloResponse
+func (s *Server) register(fullMethodName string, reqType protoreflect.ProtoMessage, respType protoreflect.ProtoMessage) *matcher {
 	s.t.Helper()
 	serviceName, methodName, err := parseFullMethodName(fullMethodName)
 	if err != nil {
@@ -143,13 +132,17 @@ func (s *Server) Register(fullMethodName string, reqType protoreflect.ProtoMessa
 				},
 			},
 		}, nil)
-
 	return m
 }
 
-func (m *matcher) Response(message protoreflect.ProtoMessage) *matcher {
-	prev := m.handler
-	m.handler = func(r protoreflect.ProtoMessage) protoreflect.ProtoMessage {
+type matcherx[X, Y protoreflect.ProtoMessage] struct {
+	matcher *matcher
+}
+
+// Response sets the response message for the matcher.
+func (m *matcherx[X, Y]) Response(message Y) *matcherx[X, Y] {
+	prev := m.matcher.handler
+	m.matcher.handler = func(r protoreflect.ProtoMessage) protoreflect.ProtoMessage {
 		if prev != nil {
 			prev(r)
 		}
@@ -158,21 +151,30 @@ func (m *matcher) Response(message protoreflect.ProtoMessage) *matcher {
 	return m
 }
 
-func (s *Server) Method(fullMethodName string) *matcher {
-	m, ok := s.matchers[fullMethodName]
-	if !ok {
-		s.t.Errorf("method %q is not registered", fullMethodName)
-		return nil
-	}
-	return m
-}
-
+// Requests returns the requests received by the mock gRPC server.
 func (s *Server) Requests() []*dynamicpb.Message {
 	return s.requests
 }
 
-func (m *matcher) Requests() []*dynamicpb.Message {
-	return m.requests
+// Requests returns the requests received by the matcher.
+func (m *matcherx[X, Y]) Requests() []X {
+	ret := make([]X, 0, len(m.matcher.requests))
+	for _, r := range m.matcher.requests {
+		b, err := protojson.Marshal(r)
+		if err != nil {
+			m.matcher.t.Error(err)
+			return nil
+		}
+		var x X
+		xt := reflect.TypeFor[X]()
+		x = reflect.New(xt.Elem()).Interface().(X)
+		if err := protojson.Unmarshal(b, any(x).(protoreflect.ProtoMessage)); err != nil {
+			m.matcher.t.Error(err)
+			return nil
+		}
+		ret = append(ret, x)
+	}
+	return ret
 }
 
 func (s *Server) newUnaryHandler(m *matcher) func(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -189,29 +191,6 @@ func (s *Server) newUnaryHandler(m *matcher) func(srv interface{}, ctx context.C
 		m.mu.Unlock()
 		return m.handler(in), nil
 	}
-}
-
-func MapRequests[M any](t TB, reqs []*dynamicpb.Message) []*M {
-	t.Helper()
-	if _, ok := any(new(M)).(protoreflect.ProtoMessage); !ok {
-		t.Error("*M must implements protoreflect.ProtoMessage")
-		return nil
-	}
-	ret := make([]*M, 0, len(reqs))
-	for _, r := range reqs {
-		b, err := protojson.Marshal(r)
-		if err != nil {
-			t.Error(err)
-			return nil
-		}
-		m := new(M)
-		if err := protojson.Unmarshal(b, any(m).(protoreflect.ProtoMessage)); err != nil {
-			t.Error(err)
-			return nil
-		}
-		ret = append(ret, m)
-	}
-	return ret
 }
 
 // "/hello.GrpcTestService/Hello" -> ("hello.GrpcTestService", "Hello")
