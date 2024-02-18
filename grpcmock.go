@@ -88,6 +88,33 @@ func (s *Server) ClientConn() *grpc.ClientConn {
 	return s.cc
 }
 
+// func (s *Server) RegisterX(fullMethodName string, fn any) *matcher {
+// 	hoge(s.t, fn)
+// 	return nil
+// }
+
+// func hoge(t TB, fn any) (req, res protoreflect.ProtoMessage) {
+// 	t.Helper()
+// 	fnType := reflect.TypeOf(fn)
+// 	if fnType.Kind() != reflect.Func {
+// 		t.Fatal("fn must be a function")
+// 	}
+// 	if fnType.NumIn() < 2 {
+// 		t.Fatal("fn must have at least 2 fields")
+// 	}
+// 	arg0 := fnType.In(0)
+// 	reflect.TypeFor().Implements(arg0)
+// 	fmt.Printf("😀%+v\n", arg0.Kind())
+// 	return nil, nil
+// 	// fnType.Elem().FieldByIndex([]int{0})
+// 	// if fnType.NumOut() != 2 {
+// 	// 	t.Fatal("fn must have 2 return values")
+// 	// }
+// 	// if fnType.In(0).Kind() != reflect.Int || fnType.Out(0) != reflect.TypeOf((*error)(nil)).Elem() {
+// 	// 	return false
+// 	// }
+// }
+
 func (s *Server) Register(fullMethodName string, reqType protoreflect.ProtoMessage, respType protoreflect.ProtoMessage) *matcher {
 	s.t.Helper()
 	serviceName, methodName, err := parseFullMethodName(fullMethodName)
@@ -164,7 +191,7 @@ func (s *Server) newUnaryHandler(m *matcher) func(srv interface{}, ctx context.C
 	}
 }
 
-func MapRequests[M any](t *testing.T, reqs []*dynamicpb.Message) []*M {
+func MapRequests[M any](t TB, reqs []*dynamicpb.Message) []*M {
 	t.Helper()
 	if _, ok := any(new(M)).(protoreflect.ProtoMessage); !ok {
 		t.Error("*M must implements protoreflect.ProtoMessage")

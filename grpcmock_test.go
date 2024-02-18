@@ -133,3 +133,38 @@ func TestServerMethod(t *testing.T) {
 		}
 	}
 }
+
+func Register(t *testing.T) {
+	ts := grpcmock.NewServer(t)
+	conn := ts.ClientConn()
+	client := hello.NewGrpcTestServiceClient(conn)
+
+	// arrange
+	mx := grpcmock.Register(ts, hello.GrpcTestService_Hello_FullMethodName, hello.GrpcTestServiceClient.Hello).
+		Response(&hello.HelloResponse{
+			Message: "Hello, world!",
+		})
+	ts.Start()
+
+	// act
+	ctx := context.Background()
+	res, err := client.Hello(ctx, &hello.HelloRequest{Name: "qawatake"})
+
+	// assert
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Message != "Hello, world!" {
+		t.Errorf("unexpected response: %s", res.Message)
+	}
+	{
+		reqs := mx.Requests()
+		if len(reqs) != 1 {
+			t.Errorf("unexpected requests: %v", reqs)
+		}
+		got := reqs[0]
+		if got.Name != "qawatake" {
+			t.Errorf("unexpected request: %v", got)
+		}
+	}
+}
