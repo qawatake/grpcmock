@@ -55,7 +55,7 @@ type matcher struct {
 
 // type matchFunc func(r protoreflect.ProtoMessage) bool
 
-type handlerFunc func(r protoreflect.ProtoMessage) protoreflect.ProtoMessage
+type handlerFunc func(r protoreflect.ProtoMessage) (protoreflect.ProtoMessage, error)
 
 func NewServer(t TB) *Server {
 	t.Helper()
@@ -127,8 +127,8 @@ func (s *Server) register(fullMethodName string, in protoreflect.ProtoMessage, o
 		requestType:  in,
 		responseType: out,
 		t:            s.t,
-		handler: func(r protoreflect.ProtoMessage) protoreflect.ProtoMessage {
-			return dynamicpb.NewMessage(r.ProtoReflect().Descriptor())
+		handler: func(r protoreflect.ProtoMessage) (protoreflect.ProtoMessage, error) {
+			return dynamicpb.NewMessage(r.ProtoReflect().Descriptor()), nil
 		},
 	}
 	s.matchers[fullMethodName] = m
@@ -152,11 +152,12 @@ type matcherx[I, O protoreflect.ProtoMessage] struct {
 // Response sets the response message for the matcher.
 func (m *matcherx[I, O]) Response(message O) *matcherx[I, O] {
 	prev := m.matcher.handler
-	m.matcher.handler = func(r protoreflect.ProtoMessage) protoreflect.ProtoMessage {
+	m.matcher.handler = func(r protoreflect.ProtoMessage) (protoreflect.ProtoMessage, error) {
+		var err error
 		if prev != nil {
-			prev(r)
+			_, err = prev(r)
 		}
-		return message
+		return message, err
 	}
 	return m
 }
@@ -199,7 +200,7 @@ func (s *Server) newUnaryHandler(m *matcher) func(srv interface{}, ctx context.C
 		m.mu.Lock()
 		m.requests = append(m.requests, in)
 		m.mu.Unlock()
-		return m.handler(in), nil
+		return m.handler(in)
 	}
 }
 
