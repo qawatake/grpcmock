@@ -8,6 +8,8 @@ import (
 	"github.com/qawatake/grpcmock"
 	"github.com/qawatake/grpcmock/testdata/hello"
 	"github.com/qawatake/grpcmock/testdata/routeguide"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func TestRegister(t *testing.T) {
@@ -133,6 +135,39 @@ func Register_multiple_methods(t *testing.T) {
 		}
 		got := reqs[0]
 		if got.Latitude != 1 || got.Longitude != 2 {
+			t.Errorf("unexpected request: %v", got)
+		}
+	}
+}
+
+func TestStatus(t *testing.T) {
+	ts := grpcmock.NewServer(t)
+	conn := ts.ClientConn()
+	client := hello.NewGrpcTestServiceClient(conn)
+
+	// arrange
+	helloRPC := grpcmock.Register(ts, hello.GrpcTestService_Hello_FullMethodName, hello.GrpcTestServiceClient.Hello).
+		Status(status.New(codes.Unknown, "unknown"))
+	ts.Start()
+
+	// act
+	ctx := context.Background()
+	res, err := client.Hello(ctx, &hello.HelloRequest{Name: "qawatake"})
+
+	// assert
+	if err == nil {
+		t.Error("error expected but got nil")
+	}
+	if res != nil {
+		t.Errorf("want nil, got %v", res)
+	}
+	{
+		reqs := helloRPC.Requests()
+		if len(reqs) != 1 {
+			t.Errorf("unexpected requests: %v", reqs)
+		}
+		got := reqs[0]
+		if got.Name != "qawatake" {
 			t.Errorf("unexpected request: %v", got)
 		}
 	}

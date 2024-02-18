@@ -11,6 +11,7 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/dynamicpb"
@@ -158,6 +159,17 @@ func (m *matcherx[I, O]) Response(message O) *matcherx[I, O] {
 			_, err = prev(r)
 		}
 		return message, err
+	}
+	return m
+}
+
+func (m *matcherx[I, O]) Status(s *status.Status) *matcherx[I, O] {
+	prev := m.matcher.handler
+	m.matcher.handler = func(r protoreflect.ProtoMessage) (protoreflect.ProtoMessage, error) {
+		if prev != nil {
+			prev(r)
+		}
+		return nil, s.Err()
 	}
 	return m
 }
