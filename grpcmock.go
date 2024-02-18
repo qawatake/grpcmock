@@ -2,7 +2,9 @@ package grpcmock
 
 import (
 	"context"
+	"fmt"
 	"net"
+	"strings"
 	"sync"
 	"testing"
 
@@ -25,7 +27,6 @@ type Server struct {
 	// requests          []*Request
 	requests []*dynamicpb.Message
 	// unmatchedRequests []*Request
-	unmatchedRequests []protoreflect.ProtoMessage
 	// healthCheck       bool
 	// disableReflection bool
 	// status            serverStatus
@@ -94,7 +95,13 @@ func (s *Server) ClientConn() *grpc.ClientConn {
 	return s.cc
 }
 
-func (s *Server) Register(serviceName, methodName string, reqType protoreflect.ProtoMessage, respType protoreflect.ProtoMessage) *matcher {
+func (s *Server) Register(fullMethodName string, reqType protoreflect.ProtoMessage, respType protoreflect.ProtoMessage) *matcher {
+	s.t.Helper()
+	serviceName, methodName, err := parseFullMethodName(fullMethodName)
+	if err != nil {
+		s.t.Fatal(err)
+		return nil
+	}
 	m := &matcher{
 		serviceName:  serviceName,
 		methodName:   methodName,
@@ -105,7 +112,7 @@ func (s *Server) Register(serviceName, methodName string, reqType protoreflect.P
 			return dynamicpb.NewMessage(r.ProtoReflect().Descriptor())
 		},
 	}
-	s.matchers[serviceName+methodName] = m
+	s.matchers[fullMethodName] = m
 	s.server.RegisterService(
 		&grpc.ServiceDesc{
 			ServiceName: serviceName,
@@ -131,10 +138,10 @@ func (m *matcher) Response(message protoreflect.ProtoMessage) *matcher {
 	return m
 }
 
-func (s *Server) Method(serviceName, methodName string) *matcher {
-	m, ok := s.matchers[serviceName+methodName]
+func (s *Server) Method(fullMethodName string) *matcher {
+	m, ok := s.matchers[fullMethodName]
 	if !ok {
-		s.t.Errorf("method %s/%s is not registered", serviceName, methodName)
+		s.t.Errorf("method %q is not registered", fullMethodName)
 		return nil
 	}
 	return m
@@ -185,4 +192,13 @@ func MapRequests[M any](t *testing.T, reqs []*dynamicpb.Message) []*M {
 		ret = append(ret, m)
 	}
 	return ret
+}
+
+// "/hello.GrpcTestService/Hello" -> ("hello.GrpcTestService", "Hello")
+func parseFullMethodName(name string) (serviceName, methodName string, err error) {
+	ss := strings.Split(name, "/")
+	if len(ss) != 3 {
+		return "", "", fmt.Errorf("%q is invalid full method name", name)
+	}
+	return ss[1], ss[2], nil
 }

@@ -16,7 +16,7 @@ func TestServer(t *testing.T) {
 	client := hello.NewGrpcTestServiceClient(conn)
 
 	// arrange
-	ts.Register("hello.GrpcTestService", "Hello", new(hello.HelloRequest), new(hello.HelloResponse)).Response(&hello.HelloResponse{
+	ts.Register(hello.GrpcTestService_Hello_FullMethodName, new(hello.HelloRequest), new(hello.HelloResponse)).Response(&hello.HelloResponse{
 		Message: "Hello, world!",
 	})
 	ts.Start()
@@ -50,7 +50,7 @@ func TestServerConcurrency(t *testing.T) {
 	client := hello.NewGrpcTestServiceClient(conn)
 
 	// arrange
-	ts.Register("hello.GrpcTestService", "Hello", new(hello.HelloRequest), new(hello.HelloResponse)).Response(&hello.HelloResponse{
+	ts.Register(hello.GrpcTestService_Hello_FullMethodName, new(hello.HelloRequest), new(hello.HelloResponse)).Response(&hello.HelloResponse{
 		Message: "Hello, world!",
 	})
 	ts.Start()
@@ -86,10 +86,10 @@ func TestServerMethod(t *testing.T) {
 	routeGuideClient := routeguide.NewRouteGuideClient(conn)
 
 	// arrange
-	ts.Register("hello.GrpcTestService", "Hello", new(hello.HelloRequest), new(hello.HelloResponse)).Response(&hello.HelloResponse{
+	ts.Register(hello.GrpcTestService_Hello_FullMethodName, new(hello.HelloRequest), new(hello.HelloResponse)).Response(&hello.HelloResponse{
 		Message: "Hello, world!",
 	})
-	ts.Register("routeguide.RouteGuide", "GetFeature", new(routeguide.Point), new(routeguide.Feature)).Response(&routeguide.Feature{
+	ts.Register(routeguide.RouteGuide_GetFeature_FullMethodName, new(routeguide.Point), new(routeguide.Feature)).Response(&routeguide.Feature{
 		Name: "test",
 	})
 	ts.Start()
@@ -113,7 +113,7 @@ func TestServerMethod(t *testing.T) {
 		t.Errorf("unexpected response: %s", routeRes.Name)
 	}
 	{
-		reqs := grpcmock.MapRequests[hello.HelloRequest](t, ts.Method("hello.GrpcTestService", "Hello").Requests())
+		reqs := grpcmock.MapRequests[hello.HelloRequest](t, ts.Method(hello.GrpcTestService_Hello_FullMethodName).Requests())
 		if len(reqs) != 1 {
 			t.Errorf("unexpected requests: %v", reqs)
 		}
@@ -123,7 +123,7 @@ func TestServerMethod(t *testing.T) {
 		}
 	}
 	{
-		reqs := grpcmock.MapRequests[routeguide.Point](t, ts.Method("routeguide.RouteGuide", "GetFeature").Requests())
+		reqs := grpcmock.MapRequests[routeguide.Point](t, ts.Method(routeguide.RouteGuide_GetFeature_FullMethodName).Requests())
 		if len(reqs) != 1 {
 			t.Errorf("unexpected requests: %v", reqs)
 		}
