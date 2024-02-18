@@ -145,12 +145,12 @@ func (s *Server) register(fullMethodName string, in protoreflect.ProtoMessage, o
 	return m
 }
 
-type matcherx[X, Y protoreflect.ProtoMessage] struct {
+type matcherx[I, O protoreflect.ProtoMessage] struct {
 	matcher *matcher
 }
 
 // Response sets the response message for the matcher.
-func (m *matcherx[X, Y]) Response(message Y) *matcherx[X, Y] {
+func (m *matcherx[I, O]) Response(message O) *matcherx[I, O] {
 	prev := m.matcher.handler
 	m.matcher.handler = func(r protoreflect.ProtoMessage) protoreflect.ProtoMessage {
 		if prev != nil {
@@ -167,22 +167,22 @@ func (s *Server) Requests() []*dynamicpb.Message {
 }
 
 // Requests returns the requests received by the matcher.
-func (m *matcherx[X, Y]) Requests() []X {
-	ret := make([]X, 0, len(m.matcher.requests))
+func (m *matcherx[I, O]) Requests() []I {
+	ret := make([]I, 0, len(m.matcher.requests))
 	for _, r := range m.matcher.requests {
 		b, err := protojson.Marshal(r)
 		if err != nil {
 			m.matcher.t.Error(err)
 			return nil
 		}
-		var x X
-		xt := reflect.TypeFor[X]()
-		x = reflect.New(xt.Elem()).Interface().(X)
-		if err := protojson.Unmarshal(b, any(x).(protoreflect.ProtoMessage)); err != nil {
+		var in I
+		it := reflect.TypeFor[I]()
+		in = reflect.New(it.Elem()).Interface().(I)
+		if err := protojson.Unmarshal(b, any(in).(protoreflect.ProtoMessage)); err != nil {
 			m.matcher.t.Error(err)
 			return nil
 		}
-		ret = append(ret, x)
+		ret = append(ret, in)
 	}
 	return ret
 }
