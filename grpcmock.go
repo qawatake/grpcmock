@@ -24,13 +24,13 @@ type Server struct {
 	server   *grpc.Server
 	// tlsc              *tls.Config
 	// cacert            []byte
-	cc       *grpc.ClientConn
-	requests []*Request[*dynamicpb.Message]
+	cc *grpc.ClientConn
+	// requests []*Request[*dynamicpb.Message]
 	// healthCheck       bool
 	// disableReflection bool
 	// status            serverStatus
-	t  TB
-	mu sync.RWMutex
+	t TB
+	// mu sync.RWMutex
 }
 
 var _ TB = (testing.TB)(nil)
@@ -101,12 +101,12 @@ func (s *Server) Start() {
 //
 // Example:
 // Register(ts, "/hello.GrpcTestService/Hello", hello.GrpcTestServiceClient.Hello)
-func Register[R any, I, O protoreflect.ProtoMessage](s *Server, fullMethodName string, method RPC[R, I, O]) *matcherx[I, O] {
+func Register[R any, I, O protoreflect.ProtoMessage](s *Server, fullMethodName string, method RPC[R, I, O]) *Matcher[I, O] {
 	s.t.Helper()
 	var in I
 	var out O
 	m := s.register(fullMethodName, in, out)
-	return &matcherx[I, O]{matcher: m}
+	return &Matcher[I, O]{matcher: m}
 }
 
 // RPC is a generic function type for gRPC methods.
@@ -151,12 +151,12 @@ func (s *Server) register(fullMethodName string, in protoreflect.ProtoMessage, o
 	return m
 }
 
-type matcherx[I, O protoreflect.ProtoMessage] struct {
+type Matcher[I, O protoreflect.ProtoMessage] struct {
 	matcher *matcher
 }
 
 // Response sets the response message for the matcher.
-func (m *matcherx[I, O]) Response(message O) *matcherx[I, O] {
+func (m *Matcher[I, O]) Response(message O) *Matcher[I, O] {
 	prev := m.matcher.handler
 	m.matcher.handler = func(r protoreflect.ProtoMessage) (protoreflect.ProtoMessage, error) {
 		var err error
@@ -168,7 +168,7 @@ func (m *matcherx[I, O]) Response(message O) *matcherx[I, O] {
 	return m
 }
 
-func (m *matcherx[I, O]) Status(s *status.Status) *matcherx[I, O] {
+func (m *Matcher[I, O]) Status(s *status.Status) *Matcher[I, O] {
 	prev := m.matcher.handler
 	m.matcher.handler = func(r protoreflect.ProtoMessage) (protoreflect.ProtoMessage, error) {
 		if prev != nil {
@@ -179,18 +179,13 @@ func (m *matcherx[I, O]) Status(s *status.Status) *matcherx[I, O] {
 	return m
 }
 
-// Requests returns the requests received by the mock gRPC server.
-func (s *Server) Requests() []Request[*dynamicpb.Message] {
-	return s.Requests()
-}
-
 type Request[I protoreflect.ProtoMessage] struct {
 	Message I
 	Headers metadata.MD
 }
 
 // Requests returns the requests received by the matcher.
-func (m *matcherx[I, O]) Requests() []*Request[I] {
+func (m *Matcher[I, O]) Requests() []*Request[I] {
 	ret := make([]*Request[I], 0, len(m.matcher.requests))
 	for _, r := range m.matcher.requests {
 		b, err := protojson.Marshal(r.Message)
@@ -217,9 +212,6 @@ func (s *Server) newUnaryHandler(m *matcher) func(srv interface{}, ctx context.C
 		if err := dec(in); err != nil {
 			return nil, err
 		}
-		s.mu.Lock()
-		s.requests = append(s.requests, &Request[*dynamicpb.Message]{Message: in, Headers: md})
-		s.mu.Unlock()
 		m.mu.Lock()
 		m.requests = append(m.requests, &Request[*dynamicpb.Message]{Message: in, Headers: md})
 		m.mu.Unlock()
