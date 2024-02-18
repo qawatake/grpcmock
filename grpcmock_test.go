@@ -9,6 +9,7 @@ import (
 	"github.com/qawatake/grpcmock/testdata/hello"
 	"github.com/qawatake/grpcmock/testdata/routeguide"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 
@@ -168,6 +169,39 @@ func TestStatus(t *testing.T) {
 		}
 		got := reqs[0]
 		if got.Message.Name != "qawatake" {
+			t.Errorf("unexpected request: %v", got)
+		}
+	}
+}
+
+func TestHeaders(t *testing.T) {
+	ts := grpcmock.NewServer(t)
+	conn := ts.ClientConn()
+	client := hello.NewGrpcTestServiceClient(conn)
+
+	// arrange
+	helloRPC := grpcmock.Register(ts, hello.GrpcTestService_Hello_FullMethodName, hello.GrpcTestServiceClient.Hello)
+	ts.Start()
+
+	// act
+	ctx := context.Background()
+	ctx = metadata.AppendToOutgoingContext(ctx, "key", "psj2buus")
+	_, err := client.Hello(ctx, &hello.HelloRequest{})
+
+	// assert
+	if err != nil {
+		t.Fatal(err)
+	}
+	{
+		reqs := helloRPC.Requests()
+		if len(reqs) != 1 {
+			t.Errorf("unexpected requests: %v", reqs)
+		}
+		got := reqs[0].Headers.Get("key")
+		if len(got) != 1 {
+			t.Errorf("unexpected request: %v", got)
+		}
+		if got[0] != "psj2buus" {
 			t.Errorf("unexpected request: %v", got)
 		}
 	}
