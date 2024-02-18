@@ -95,13 +95,18 @@ func (s *Server) Start() {
 //
 // Example:
 // Register(ts, "/hello.GrpcTestService/Hello", hello.GrpcTestServiceClient.Hello)
-func Register[R any, X, Y protoreflect.ProtoMessage](s *Server, fullMethodName string, method func(R, context.Context, X, ...grpc.CallOption) (Y, error)) *matcherx[X, Y] {
+func Register[R any, I, O protoreflect.ProtoMessage](s *Server, fullMethodName string, method RPC[R, I, O]) *matcherx[I, O] {
 	s.t.Helper()
-	var req X
-	var res Y
-	m := s.register(fullMethodName, req, res)
-	return &matcherx[X, Y]{matcher: m}
+	var in I
+	var out O
+	m := s.register(fullMethodName, in, out)
+	return &matcherx[I, O]{matcher: m}
 }
+
+// RPC is a generic function type for gRPC methods.
+//
+// Example: hello.GrpcTestServiceClient.Hello
+type RPC[R any, I, O protoreflect.ProtoMessage] func(R, context.Context, I, ...grpc.CallOption) (O, error)
 
 // register registers a root matcher to the internal gRPC server.
 //
@@ -109,7 +114,7 @@ func Register[R any, X, Y protoreflect.ProtoMessage](s *Server, fullMethodName s
 // fullMethodName: "/hello.GrpcTestService/Hello"
 // reqType *hello.HelloRequest
 // respType *hello.HelloResponse
-func (s *Server) register(fullMethodName string, reqType protoreflect.ProtoMessage, respType protoreflect.ProtoMessage) *matcher {
+func (s *Server) register(fullMethodName string, in protoreflect.ProtoMessage, out protoreflect.ProtoMessage) *matcher {
 	s.t.Helper()
 	serviceName, methodName, err := parseFullMethodName(fullMethodName)
 	if err != nil {
@@ -119,8 +124,8 @@ func (s *Server) register(fullMethodName string, reqType protoreflect.ProtoMessa
 	m := &matcher{
 		serviceName:  serviceName,
 		methodName:   methodName,
-		requestType:  reqType,
-		responseType: respType,
+		requestType:  in,
+		responseType: out,
 		t:            s.t,
 		handler: func(r protoreflect.ProtoMessage) protoreflect.ProtoMessage {
 			return dynamicpb.NewMessage(r.ProtoReflect().Descriptor())
