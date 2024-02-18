@@ -13,13 +13,13 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-func TestRegister(t *testing.T) {
+func TestMatcher_Response(t *testing.T) {
 	ts := grpcmock.NewServer(t)
 	conn := ts.ClientConn()
 	client := hello.NewGrpcTestServiceClient(conn)
 
 	// arrange
-	helloRPC := grpcmock.Register(ts, hello.GrpcTestService_Hello_FullMethodName, hello.GrpcTestServiceClient.Hello).
+	grpcmock.Register(ts, hello.GrpcTestService_Hello_FullMethodName, hello.GrpcTestServiceClient.Hello).
 		Response(&hello.HelloResponse{
 			Message: "Hello, world!",
 		})
@@ -36,28 +36,39 @@ func TestRegister(t *testing.T) {
 	if res.Message != "Hello, world!" {
 		t.Errorf("unexpected response: %s", res.Message)
 	}
-	{
-		reqs := helloRPC.Requests()
-		if len(reqs) != 1 {
-			t.Errorf("unexpected requests: %v", reqs)
-		}
-		got := reqs[0].Message
-		if got.Name != "qawatake" {
-			t.Errorf("unexpected request: %v", got)
-		}
-	}
 }
 
-func Register_concurrency(t *testing.T) {
+func TestMatcher_Requests(t *testing.T) {
 	ts := grpcmock.NewServer(t)
 	conn := ts.ClientConn()
 	client := hello.NewGrpcTestServiceClient(conn)
 
 	// arrange
-	helloRPC := grpcmock.Register(ts, hello.GrpcTestService_Hello_FullMethodName, hello.GrpcTestServiceClient.Hello).
-		Response(&hello.HelloResponse{
-			Message: "Hello, world!",
-		})
+	helloRPC := grpcmock.Register(ts, hello.GrpcTestService_Hello_FullMethodName, hello.GrpcTestServiceClient.Hello)
+	ts.Start()
+
+	// act
+	ctx := context.Background()
+	client.Hello(ctx, &hello.HelloRequest{Name: "qawatake"})
+
+	// assert
+	reqs := helloRPC.Requests()
+	if len(reqs) != 1 {
+		t.Errorf("unexpected requests: %v", reqs)
+	}
+	got := reqs[0].Message
+	if got.Name != "qawatake" {
+		t.Errorf("unexpected request: %v", got)
+	}
+}
+
+func TestMatcher_Requests_concurrency(t *testing.T) {
+	ts := grpcmock.NewServer(t)
+	conn := ts.ClientConn()
+	client := hello.NewGrpcTestServiceClient(conn)
+
+	// arrange
+	helloRPC := grpcmock.Register(ts, hello.GrpcTestService_Hello_FullMethodName, hello.GrpcTestServiceClient.Hello)
 	ts.Start()
 
 	// act
@@ -84,7 +95,7 @@ func Register_concurrency(t *testing.T) {
 	}
 }
 
-func Register_multiple_methods(t *testing.T) {
+func TestMatcher_Requests_multiple_methods(t *testing.T) {
 	ts := grpcmock.NewServer(t)
 	conn := ts.ClientConn()
 	helloClient := hello.NewGrpcTestServiceClient(conn)
@@ -141,13 +152,13 @@ func Register_multiple_methods(t *testing.T) {
 	}
 }
 
-func TestStatus(t *testing.T) {
+func TestMatcher_Status(t *testing.T) {
 	ts := grpcmock.NewServer(t)
 	conn := ts.ClientConn()
 	client := hello.NewGrpcTestServiceClient(conn)
 
 	// arrange
-	helloRPC := grpcmock.Register(ts, hello.GrpcTestService_Hello_FullMethodName, hello.GrpcTestServiceClient.Hello).
+	grpcmock.Register(ts, hello.GrpcTestService_Hello_FullMethodName, hello.GrpcTestServiceClient.Hello).
 		Status(status.New(codes.Unknown, "unknown"))
 	ts.Start()
 
@@ -162,19 +173,9 @@ func TestStatus(t *testing.T) {
 	if res != nil {
 		t.Errorf("want nil, got %v", res)
 	}
-	{
-		reqs := helloRPC.Requests()
-		if len(reqs) != 1 {
-			t.Errorf("unexpected requests: %v", reqs)
-		}
-		got := reqs[0].Message
-		if got.Name != "qawatake" {
-			t.Errorf("unexpected request: %v", got)
-		}
-	}
 }
 
-func TestHeaders(t *testing.T) {
+func TestMatcher_Headers(t *testing.T) {
 	ts := grpcmock.NewServer(t)
 	conn := ts.ClientConn()
 	client := hello.NewGrpcTestServiceClient(conn)
@@ -186,12 +187,9 @@ func TestHeaders(t *testing.T) {
 	// act
 	ctx := context.Background()
 	ctx = metadata.AppendToOutgoingContext(ctx, "key", "psj2buus")
-	_, err := client.Hello(ctx, &hello.HelloRequest{})
+	client.Hello(ctx, &hello.HelloRequest{})
 
 	// assert
-	if err != nil {
-		t.Fatal(err)
-	}
 	{
 		reqs := helloRPC.Requests()
 		if len(reqs) != 1 {
