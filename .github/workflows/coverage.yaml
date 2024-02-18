@@ -1,0 +1,18 @@
+on:
+  push:
+    branches:
+      - main
+name: upload-coverage-report
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v4
+        with:
+          go-version-file: go.mod
+      - name: test and generate coverage report
+        run: make test.cover
+      - uses: codecov/codecov-action@v3
+        with:
+          files: ./coverage.txt
