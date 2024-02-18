@@ -2,48 +2,19 @@ package grpcmock
 
 import (
 	"context"
+	"reflect"
 
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/reflect/protoreflect"
-	"google.golang.org/protobuf/types/dynamicpb"
 )
 
 func Register[R any, X, Y protoreflect.ProtoMessage](s *Server, fullMethodName string, method func(R, context.Context, X, ...grpc.CallOption) (Y, error)) *matcherx[X, Y] {
 	s.t.Helper()
 	var req X
 	var res Y
-
-	serviceName, methodName, err := parseFullMethodName(fullMethodName)
-	if err != nil {
-		s.t.Fatal(err)
-		return nil
-	}
-	mx := &matcherx[X, Y]{
-		matcher: &matcher{
-			serviceName:  serviceName,
-			methodName:   methodName,
-			requestType:  req,
-			responseType: res,
-			t:            s.t,
-			handler: func(r protoreflect.ProtoMessage) protoreflect.ProtoMessage {
-				return dynamicpb.NewMessage(r.ProtoReflect().Descriptor())
-			},
-		},
-	}
-	s.matchers[fullMethodName] = mx.matcher
-	s.server.RegisterService(
-		&grpc.ServiceDesc{
-			ServiceName: serviceName,
-			Methods: []grpc.MethodDesc{
-				{
-					MethodName: methodName,
-					Handler:    s.newUnaryHandler(mx.matcher),
-				},
-			},
-		}, nil)
-
-	return mx
+	m := s.Register(fullMethodName, req, res)
+	return &matcherx[X, Y]{matcher: m}
 }
 
 type matcherx[X, Y protoreflect.ProtoMessage] struct {
@@ -70,7 +41,8 @@ func (m *matcherx[X, Y]) Requests() []X {
 			return nil
 		}
 		var x X
-		x = (x.ProtoReflect()).(X)
+		xt := reflect.TypeFor[X]()
+		x = reflect.New(xt.Elem()).Interface().(X)
 		if err := protojson.Unmarshal(b, any(x).(protoreflect.ProtoMessage)); err != nil {
 			m.matcher.t.Error(err)
 			return nil
