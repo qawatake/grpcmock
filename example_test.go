@@ -26,9 +26,9 @@ func Example() {
 	ctx := context.Background()
 	res, _ := client.Hello(ctx, &hello.HelloRequest{Name: "qawatake"})
 
-	fmt.Println(res.Message)
-	fmt.Println(helloRPC.Requests()[0].Name)
+	fmt.Println("Response:", res.Message)
+	fmt.Println("Request:", helloRPC.Requests()[0].Name)
 	// Output:
-	// Hello, world!
-	// qawatake
+	// Response: Hello, world!
+	// Request: qawatake
 }
