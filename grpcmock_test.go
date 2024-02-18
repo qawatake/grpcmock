@@ -8,7 +8,9 @@ import (
 	"github.com/qawatake/grpcmock"
 	"github.com/qawatake/grpcmock/testdata/hello"
 	"github.com/qawatake/grpcmock/testdata/routeguide"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
@@ -202,5 +204,34 @@ func TestMatcher_Headers(t *testing.T) {
 		if got[0] != "psj2buus" {
 			t.Errorf("unexpected request: %v", got)
 		}
+	}
+}
+
+func TestServer_Addr(t *testing.T) {
+	ts := grpcmock.NewServer(t)
+	addr := ts.Addr()
+	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	client := hello.NewGrpcTestServiceClient(conn)
+
+	// arrange
+	grpcmock.Register(ts, hello.GrpcTestService_Hello_FullMethodName, hello.GrpcTestServiceClient.Hello).
+		Response(&hello.HelloResponse{
+			Message: "Hello, world!",
+		})
+	ts.Start()
+
+	// act
+	ctx := context.Background()
+	res, err := client.Hello(ctx, &hello.HelloRequest{Name: "qawatake"})
+
+	// assert
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Message != "Hello, world!" {
+		t.Errorf("unexpected response: %s", res.Message)
 	}
 }
