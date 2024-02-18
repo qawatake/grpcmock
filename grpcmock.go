@@ -16,17 +16,13 @@ import (
 )
 
 type Server struct {
-	// matchers []*matcher
 	matchers map[string]*matcher
-	// fds               linker.Files
 	listener net.Listener
 	server   *grpc.Server
 	// tlsc              *tls.Config
 	// cacert            []byte
-	cc *grpc.ClientConn
-	// requests          []*Request
+	cc       *grpc.ClientConn
 	requests []*dynamicpb.Message
-	// unmatchedRequests []*Request
 	// healthCheck       bool
 	// disableReflection bool
 	// status            serverStatus
@@ -50,17 +46,14 @@ type matcher struct {
 	requestType  protoreflect.ProtoMessage
 	responseType protoreflect.ProtoMessage
 	// matchFuncs   []matchFunc
-	handler handlerFunc
-	// requests   []*Request
+	handler  handlerFunc
 	requests []*dynamicpb.Message
 	t        TB
 	mu       sync.RWMutex
 }
 
-// type matchFunc func(r *Request) bool
-type matchFunc func(r protoreflect.ProtoMessage) bool
+// type matchFunc func(r protoreflect.ProtoMessage) bool
 
-// type handlerFunc func(r *Request, md protoreflect.MethodDescriptor) *Response
 type handlerFunc func(r protoreflect.ProtoMessage) protoreflect.ProtoMessage
 
 func NewServer(t TB) *Server {
@@ -177,7 +170,7 @@ func MapRequests[M any](t *testing.T, reqs []*dynamicpb.Message) []*M {
 		t.Error("*M must implements protoreflect.ProtoMessage")
 		return nil
 	}
-	var ret []*M
+	ret := make([]*M, 0, len(reqs))
 	for _, r := range reqs {
 		b, err := protojson.Marshal(r)
 		if err != nil {
