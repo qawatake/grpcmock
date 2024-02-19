@@ -43,22 +43,6 @@ type TB interface {
 	Helper()
 }
 
-type matcher struct {
-	serviceName  string
-	methodName   string
-	requestType  protoreflect.ProtoMessage
-	responseType protoreflect.ProtoMessage
-	// matchFuncs   []matchFunc
-	handler  handlerFunc
-	requests []*Request[*dynamicpb.Message]
-	t        TB
-	mu       sync.RWMutex
-}
-
-// type matchFunc func(r protoreflect.ProtoMessage) bool
-
-type handlerFunc func(r protoreflect.ProtoMessage) (protoreflect.ProtoMessage, error)
-
 func NewServer(t TB) *Server {
 	t.Helper()
 	lis, err := net.Listen("tcp", "127.0.0.1:0")
@@ -154,6 +138,22 @@ func (s *Server) register(fullMethodName string, in protoreflect.ProtoMessage, o
 type Matcher[I, O protoreflect.ProtoMessage] struct {
 	matcher *matcher
 }
+
+type matcher struct {
+	serviceName  string
+	methodName   string
+	requestType  protoreflect.ProtoMessage
+	responseType protoreflect.ProtoMessage
+	// matchFuncs   []matchFunc
+	handler  handlerFunc
+	requests []*Request[*dynamicpb.Message]
+	t        TB
+	mu       sync.RWMutex
+}
+
+// type matchFunc func(r protoreflect.ProtoMessage) bool
+
+type handlerFunc func(r protoreflect.ProtoMessage) (protoreflect.ProtoMessage, error)
 
 // Response sets the response message for the matcher.
 func (m *Matcher[I, O]) Response(message O) *Matcher[I, O] {
