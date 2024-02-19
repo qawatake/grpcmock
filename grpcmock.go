@@ -10,16 +10,16 @@ import (
 	"testing"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/reflect/protoreflect"
-	"google.golang.org/protobuf/types/dynamicpb"
 )
 
 type Server struct {
-	matchers map[string]*matcher
+	// [fullMethodName][]*Matcher[I, O]
+	matcherz map[string]any
 	listener net.Listener
 	server   *grpc.Server
 	// tlsc              *tls.Config
@@ -55,7 +55,8 @@ func NewServer(t TB) *Server {
 		server:   grpc.NewServer(),
 		listener: lis,
 		t:        t,
-		matchers: make(map[string]*matcher),
+		matcherz: make(map[string]any),
+		// matchers: make(map[string]*matcher),
 	}
 }
 
@@ -88,10 +89,36 @@ func (s *Server) Start() {
 // Register(ts, "/hello.GrpcTestService/Hello", hello.GrpcTestServiceClient.Hello)
 func Register[R any, I, O protoreflect.ProtoMessage](s *Server, fullMethodName string, method RPC[R, I, O]) *Matcher[I, O] {
 	s.t.Helper()
-	var in I
-	var out O
-	m := s.register(fullMethodName, in, out)
-	return &Matcher[I, O]{matcher: m}
+	serviceName, methodName, err := parseFullMethodName(fullMethodName)
+	if err != nil {
+		s.t.Fatal(err)
+		return nil
+	}
+	m := &Matcher[I, O]{
+		handler: func(r I) (O, error) {
+			var out O
+			ot := reflect.TypeFor[O]()
+			out = reflect.New(ot.Elem()).Interface().(O)
+			return out, nil
+		},
+	}
+
+	matchers, exists := s.matcherz[fullMethodName].([]*Matcher[I, O])
+	matchers = append(matchers, m)
+	s.matcherz[fullMethodName] = matchers
+	if !exists {
+		s.server.RegisterService(
+			&grpc.ServiceDesc{
+				ServiceName: serviceName,
+				Methods: []grpc.MethodDesc{
+					{
+						MethodName: methodName,
+						Handler:    newUnaryHandler[I, O](s, fullMethodName),
+					},
+				},
+			}, nil)
+	}
+	return m
 }
 
 // RPC is a generic function type for gRPC methods.
@@ -105,61 +132,21 @@ type RPC[R any, I, O protoreflect.ProtoMessage] func(R, context.Context, I, ...g
 // fullMethodName: "/hello.GrpcTestService/Hello"
 // reqType *hello.HelloRequest
 // respType *hello.HelloResponse
-func (s *Server) register(fullMethodName string, in protoreflect.ProtoMessage, out protoreflect.ProtoMessage) *matcher {
-	s.t.Helper()
-	serviceName, methodName, err := parseFullMethodName(fullMethodName)
-	if err != nil {
-		s.t.Fatal(err)
-		return nil
-	}
-	m := &matcher{
-		serviceName:  serviceName,
-		methodName:   methodName,
-		requestType:  in,
-		responseType: out,
-		t:            s.t,
-		handler: func(r protoreflect.ProtoMessage) (protoreflect.ProtoMessage, error) {
-			return dynamicpb.NewMessage(r.ProtoReflect().Descriptor()), nil
-		},
-	}
-	s.matchers[fullMethodName] = m
-	s.server.RegisterService(
-		&grpc.ServiceDesc{
-			ServiceName: serviceName,
-			Methods: []grpc.MethodDesc{
-				{
-					MethodName: methodName,
-					Handler:    s.newUnaryHandler(m),
-				},
-			},
-		}, nil)
-	return m
-}
 
 type Matcher[I, O protoreflect.ProtoMessage] struct {
-	matcher *matcher
-}
-
-type matcher struct {
-	serviceName  string
-	methodName   string
-	requestType  protoreflect.ProtoMessage
-	responseType protoreflect.ProtoMessage
-	// matchFuncs   []matchFunc
-	handler  handlerFunc
-	requests []*Request[*dynamicpb.Message]
-	t        TB
+	requests []*Request[I]
 	mu       sync.RWMutex
+	handler  handlerFunc[I, O]
 }
 
 // type matchFunc func(r protoreflect.ProtoMessage) bool
 
-type handlerFunc func(r protoreflect.ProtoMessage) (protoreflect.ProtoMessage, error)
+type handlerFunc[I, O protoreflect.ProtoMessage] func(r I) (O, error)
 
 // Response sets the response message for the matcher.
 func (m *Matcher[I, O]) Response(message O) *Matcher[I, O] {
-	prev := m.matcher.handler
-	m.matcher.handler = func(r protoreflect.ProtoMessage) (protoreflect.ProtoMessage, error) {
+	prev := m.handler
+	m.handler = func(r I) (O, error) {
 		var err error
 		if prev != nil {
 			_, err = prev(r)
@@ -170,12 +157,13 @@ func (m *Matcher[I, O]) Response(message O) *Matcher[I, O] {
 }
 
 func (m *Matcher[I, O]) Status(s *status.Status) *Matcher[I, O] {
-	prev := m.matcher.handler
-	m.matcher.handler = func(r protoreflect.ProtoMessage) (protoreflect.ProtoMessage, error) {
+	prev := m.handler
+	m.handler = func(r I) (O, error) {
 		if prev != nil {
 			prev(r)
 		}
-		return nil, s.Err()
+		var out O
+		return out, s.Err()
 	}
 	return m
 }
@@ -187,36 +175,35 @@ type Request[I protoreflect.ProtoMessage] struct {
 
 // Requests returns the requests received by the matcher.
 func (m *Matcher[I, O]) Requests() []*Request[I] {
-	ret := make([]*Request[I], 0, len(m.matcher.requests))
-	for _, r := range m.matcher.requests {
-		b, err := protojson.Marshal(r.Body)
-		if err != nil {
-			m.matcher.t.Error(err)
-			return nil
-		}
+	return m.requests
+}
+
+func (m *Matcher[I, O]) Match(req *Request[I]) bool {
+	return true
+}
+
+type unaryHandler = func(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error)
+
+func newUnaryHandler[I, O protoreflect.ProtoMessage](s *Server, fullMethodName string) unaryHandler {
+	return func(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+		md, _ := metadata.FromIncomingContext(ctx)
 		var in I
 		it := reflect.TypeFor[I]()
 		in = reflect.New(it.Elem()).Interface().(I)
-		if err := protojson.Unmarshal(b, any(in).(protoreflect.ProtoMessage)); err != nil {
-			m.matcher.t.Error(err)
-			return nil
-		}
-		ret = append(ret, &Request[I]{Body: in, Headers: r.Headers})
-	}
-	return ret
-}
-
-func (s *Server) newUnaryHandler(m *matcher) func(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	return func(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-		md, _ := metadata.FromIncomingContext(ctx)
-		in := dynamicpb.NewMessage(m.requestType.ProtoReflect().Descriptor())
 		if err := dec(in); err != nil {
 			return nil, err
 		}
-		m.mu.Lock()
-		m.requests = append(m.requests, &Request[*dynamicpb.Message]{Body: in, Headers: md})
-		m.mu.Unlock()
-		return m.handler(in)
+		req := &Request[I]{Body: in, Headers: md}
+		ms := s.matcherz[fullMethodName].([]*Matcher[I, O])
+		for _, m := range ms {
+			if m.Match(req) {
+				m.mu.Lock()
+				m.requests = append(m.requests, req)
+				m.mu.Unlock()
+				return m.handler(in)
+			}
+		}
+		return nil, status.Error(codes.Unimplemented, "unimplemented")
 	}
 }
 
