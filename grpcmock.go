@@ -180,7 +180,7 @@ func (m *Matcher[I, O]) Status(s *status.Status) *Matcher[I, O] {
 }
 
 type Request[I protoreflect.ProtoMessage] struct {
-	Message I
+	Body    I
 	Headers metadata.MD
 }
 
@@ -188,7 +188,7 @@ type Request[I protoreflect.ProtoMessage] struct {
 func (m *Matcher[I, O]) Requests() []*Request[I] {
 	ret := make([]*Request[I], 0, len(m.matcher.requests))
 	for _, r := range m.matcher.requests {
-		b, err := protojson.Marshal(r.Message)
+		b, err := protojson.Marshal(r.Body)
 		if err != nil {
 			m.matcher.t.Error(err)
 			return nil
@@ -200,7 +200,7 @@ func (m *Matcher[I, O]) Requests() []*Request[I] {
 			m.matcher.t.Error(err)
 			return nil
 		}
-		ret = append(ret, &Request[I]{Message: in, Headers: r.Headers})
+		ret = append(ret, &Request[I]{Body: in, Headers: r.Headers})
 	}
 	return ret
 }
@@ -213,7 +213,7 @@ func (s *Server) newUnaryHandler(m *matcher) func(srv interface{}, ctx context.C
 			return nil, err
 		}
 		m.mu.Lock()
-		m.requests = append(m.requests, &Request[*dynamicpb.Message]{Message: in, Headers: md})
+		m.requests = append(m.requests, &Request[*dynamicpb.Message]{Body: in, Headers: md})
 		m.mu.Unlock()
 		return m.handler(in)
 	}

@@ -27,7 +27,7 @@ func Example() {
 	res, _ := client.Hello(ctx, &hello.HelloRequest{Name: "qawatake"})
 
 	fmt.Println("Response:", res.Message)
-	fmt.Println("Request:", helloRPC.Requests()[0].Message.Name)
+	fmt.Println("Request:", helloRPC.Requests()[0].Body.Name)
 	// Output:
 	// Response: Hello, world!
 	// Request: qawatake

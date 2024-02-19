@@ -58,7 +58,7 @@ func TestMatcher_Requests(t *testing.T) {
 	if len(reqs) != 1 {
 		t.Errorf("unexpected requests: %v", reqs)
 	}
-	got := reqs[0].Message
+	got := reqs[0].Body
 	if got.Name != "qawatake" {
 		t.Errorf("unexpected request: %v", got)
 	}
@@ -137,7 +137,7 @@ func TestMatcher_Requests_multiple_methods(t *testing.T) {
 		if len(reqs) != 1 {
 			t.Errorf("unexpected requests: %v", reqs)
 		}
-		got := reqs[0].Message
+		got := reqs[0].Body
 		if got.Name != "qawatake" {
 			t.Errorf("unexpected request: %v", got)
 		}
@@ -147,7 +147,7 @@ func TestMatcher_Requests_multiple_methods(t *testing.T) {
 		if len(reqs) != 1 {
 			t.Errorf("unexpected requests: %v", reqs)
 		}
-		got := reqs[0].Message
+		got := reqs[0].Body
 		if got.Latitude != 1 || got.Longitude != 2 {
 			t.Errorf("unexpected request: %v", got)
 		}
