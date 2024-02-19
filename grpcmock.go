@@ -95,6 +95,7 @@ func Register[R any, I, O protoreflect.ProtoMessage](s *Server, fullMethodName s
 		return nil
 	}
 	m := &Matcher[I, O]{
+		matchFunc: func(req *Request[I]) bool { return true },
 		handler: func(r I) (O, error) {
 			var out O
 			ot := reflect.TypeFor[O]()
@@ -134,12 +135,13 @@ type RPC[R any, I, O protoreflect.ProtoMessage] func(R, context.Context, I, ...g
 // respType *hello.HelloResponse
 
 type Matcher[I, O protoreflect.ProtoMessage] struct {
-	requests []*Request[I]
-	mu       sync.RWMutex
-	handler  handlerFunc[I, O]
+	requests  []*Request[I]
+	mu        sync.RWMutex
+	matchFunc matchFunc[I, O]
+	handler   handlerFunc[I, O]
 }
 
-// type matchFunc func(r protoreflect.ProtoMessage) bool
+type matchFunc[I, O protoreflect.ProtoMessage] func(req *Request[I]) bool
 
 type handlerFunc[I, O protoreflect.ProtoMessage] func(r I) (O, error)
 
@@ -178,10 +180,6 @@ func (m *Matcher[I, O]) Requests() []*Request[I] {
 	return m.requests
 }
 
-func (m *Matcher[I, O]) Match(req *Request[I]) bool {
-	return true
-}
-
 type unaryHandler = func(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error)
 
 func newUnaryHandler[I, O protoreflect.ProtoMessage](s *Server, fullMethodName string) unaryHandler {
@@ -196,7 +194,7 @@ func newUnaryHandler[I, O protoreflect.ProtoMessage](s *Server, fullMethodName s
 		req := &Request[I]{Body: in, Headers: md}
 		ms := s.matcherz[fullMethodName].([]*Matcher[I, O])
 		for _, m := range ms {
-			if m.Match(req) {
+			if m.matchFunc(req) {
 				m.mu.Lock()
 				m.requests = append(m.requests, req)
 				m.mu.Unlock()
