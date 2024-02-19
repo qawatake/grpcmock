@@ -61,6 +61,7 @@ func NewServer(t TB) *Server {
 }
 
 func (s *Server) ClientConn() *grpc.ClientConn {
+	s.t.Helper()
 	if s.cc != nil {
 		return s.cc
 	}
