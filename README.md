@@ -28,7 +28,7 @@ func TestClient(t *testing.T) {
     t.Errorf("unexpected response: %s", res.Message)
   }
   {
-    got := helloRPC.Requests()[0]
+    got := helloRPC.Requests()[0].Body
     if got.Name != "qawatake" {
       t.Errorf("unexpected request: %v", got)
     }
