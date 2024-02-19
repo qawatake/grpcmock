@@ -12,22 +12,21 @@ func TestClient(t *testing.T) {
   conn := ts.ClientConn()
   client := hello.NewGrpcTestServiceClient(conn)
 
-  // arrange
+  // Register a mock response.
   helloRPC := grpcmock.Register(ts, "/hello.GrpcTestService/Hello", hello.GrpcTestServiceClient.Hello).
     Response(&hello.HelloResponse{
       Message: "Hello, world!",
     })
   ts.Start()
 
-  // act
   ctx := context.Background()
   res, _ := client.Hello(ctx, &hello.HelloRequest{Name: "qawatake"})
 
-  // assert
   if res.Message != "Hello, world!" {
     t.Errorf("unexpected response: %s", res.Message)
   }
   {
+    // Retrieve the request(s)
     got := helloRPC.Requests()[0].Body
     if got.Name != "qawatake" {
       t.Errorf("unexpected request: %v", got)

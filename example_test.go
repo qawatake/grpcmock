@@ -10,11 +10,12 @@ import (
 )
 
 func Example() {
-	t := &testing.T{} // provided by test
+	t := &testing.T{} // Provided by test
 
 	ts := grpcmock.NewServer(t)
 	client := hello.NewGrpcTestServiceClient(ts.ClientConn())
 
+	// Register a mock response.
 	helloRPC := grpcmock.Register(ts, "/hello.GrpcTestService/Hello", hello.GrpcTestServiceClient.Hello).
 		Response(&hello.HelloResponse{
 			Message: "Hello, world!",
