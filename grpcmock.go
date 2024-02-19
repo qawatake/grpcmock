@@ -41,6 +41,7 @@ type TB interface {
 	Fatal(args ...any)
 	Fatalf(format string, args ...any)
 	Helper()
+	Cleanup(func())
 }
 
 func NewServer(t TB) *Server {
