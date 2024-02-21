@@ -79,6 +79,54 @@ func TestMatcher_Match(t *testing.T) {
 	}
 }
 
+func TestMatcher_Match_multiple(t *testing.T) {
+	t.Parallel()
+
+	ts := grpcmock.NewServer(t)
+	conn := ts.ClientConn()
+	client := hello.NewGrpcTestServiceClient(conn)
+
+	// arrange
+	grpcmock.Register(ts, hello.GrpcTestService_Hello_FullMethodName, hello.GrpcTestServiceClient.Hello).
+		Match(func(req *hello.HelloRequest) bool {
+			return req.Name == "qawatake"
+		}).
+		Response(&hello.HelloResponse{
+			Message: "Hello, world!",
+		})
+	grpcmock.Register(ts, hello.GrpcTestService_Hello_FullMethodName, hello.GrpcTestServiceClient.Hello).
+		Match(func(req *hello.HelloRequest) bool {
+			return req.Name == "other"
+		}).
+		Response(&hello.HelloResponse{
+			Message: "Hello, other!",
+		})
+	ts.Start()
+
+	// act
+	ctx := context.Background()
+	res1, err1 := client.Hello(ctx, &hello.HelloRequest{Name: "qawatake"})
+	res2, err2 := client.Hello(ctx, &hello.HelloRequest{Name: "other"})
+
+	// assert
+	{
+		if err1 != nil {
+			t.Fatal(err1)
+		}
+		if res1.Message != "Hello, world!" {
+			t.Errorf("unexpected response: %s", res1.Message)
+		}
+	}
+	{
+		if err2 != nil {
+			t.Fatal(err2)
+		}
+		if res2.Message != "Hello, other!" {
+			t.Errorf("unexpected response: %s", res2.Message)
+		}
+	}
+}
+
 func TestMatcher_MatchHeader(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
