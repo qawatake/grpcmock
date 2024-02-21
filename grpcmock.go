@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -19,7 +20,7 @@ import (
 
 type Server struct {
 	// [fullMethodName][]*Matcher[I, O]
-	matcherz map[string]any
+	matchers map[string]any
 	listener net.Listener
 	server   *grpc.Server
 	// tlsc              *tls.Config
@@ -55,7 +56,7 @@ func NewServer(t TB) *Server {
 		server:   grpc.NewServer(),
 		listener: lis,
 		t:        t,
-		matcherz: make(map[string]any),
+		matchers: make(map[string]any),
 		// matchers: make(map[string]*matcher),
 	}
 }
@@ -97,7 +98,7 @@ func Register[R any, I, O protoreflect.ProtoMessage](s *Server, fullMethodName s
 	}
 	m := &Matcher[I, O]{
 		matchFunc: func(req *Request[I]) bool { return true },
-		handler: func(r I) (O, error) {
+		handler: func(r *Request[I]) (O, error) {
 			var out O
 			ot := reflect.TypeFor[O]()
 			out = reflect.New(ot.Elem()).Interface().(O)
@@ -105,9 +106,9 @@ func Register[R any, I, O protoreflect.ProtoMessage](s *Server, fullMethodName s
 		},
 	}
 
-	matchers, exists := s.matcherz[fullMethodName].([]*Matcher[I, O])
+	matchers, exists := s.matchers[fullMethodName].([]*Matcher[I, O])
 	matchers = append(matchers, m)
-	s.matcherz[fullMethodName] = matchers
+	s.matchers[fullMethodName] = matchers
 	if !exists {
 		s.server.RegisterService(
 			&grpc.ServiceDesc{
@@ -144,12 +145,30 @@ type Matcher[I, O protoreflect.ProtoMessage] struct {
 
 type matchFunc[I, O protoreflect.ProtoMessage] func(req *Request[I]) bool
 
-type handlerFunc[I, O protoreflect.ProtoMessage] func(r I) (O, error)
+type handlerFunc[I, O protoreflect.ProtoMessage] func(r *Request[I]) (O, error)
 
-// Response sets the response message for the matcher.
+// Match sets the request matcher.
+func (m *Matcher[I, O]) Match(f func(I) bool) *Matcher[I, O] {
+	prev := m.matchFunc
+	m.matchFunc = func(req *Request[I]) bool {
+		return prev(req) && f(req.Body)
+	}
+	return m
+}
+
+// MatchHeader sets the request header matcher.
+func (m *Matcher[I, O]) MatchHeader(key, value string) *Matcher[I, O] {
+	prev := m.matchFunc
+	m.matchFunc = func(req *Request[I]) bool {
+		return prev(req) && slices.Contains(req.Headers.Get(key), value)
+	}
+	return m
+}
+
+// Response sets the response body to be returned by the matcher.
 func (m *Matcher[I, O]) Response(message O) *Matcher[I, O] {
 	prev := m.handler
-	m.handler = func(r I) (O, error) {
+	m.handler = func(r *Request[I]) (O, error) {
 		var err error
 		if prev != nil {
 			_, err = prev(r)
@@ -159,14 +178,23 @@ func (m *Matcher[I, O]) Response(message O) *Matcher[I, O] {
 	return m
 }
 
+// Status sets the status to be returned by the matcher.
 func (m *Matcher[I, O]) Status(s *status.Status) *Matcher[I, O] {
 	prev := m.handler
-	m.handler = func(r I) (O, error) {
+	m.handler = func(r *Request[I]) (O, error) {
 		if prev != nil {
 			prev(r)
 		}
 		var out O
 		return out, s.Err()
+	}
+	return m
+}
+
+// Handler sets the handler for the matcher.
+func (m *Matcher[I, O]) Handler(f func(req I, h metadata.MD) (O, error)) *Matcher[I, O] {
+	m.handler = func(r *Request[I]) (O, error) {
+		return f(r.Body, r.Headers)
 	}
 	return m
 }
@@ -193,13 +221,13 @@ func newUnaryHandler[I, O protoreflect.ProtoMessage](s *Server, fullMethodName s
 			return nil, err
 		}
 		req := &Request[I]{Body: in, Headers: md}
-		ms := s.matcherz[fullMethodName].([]*Matcher[I, O])
+		ms := s.matchers[fullMethodName].([]*Matcher[I, O])
 		for _, m := range ms {
 			if m.matchFunc(req) {
 				m.mu.Lock()
 				m.requests = append(m.requests, req)
 				m.mu.Unlock()
-				return m.handler(in)
+				return m.handler(req)
 			}
 		}
 		return nil, status.Error(codes.Unimplemented, "unimplemented")

@@ -2,6 +2,9 @@ package grpcmock_test
 
 import (
 	"context"
+	"fmt"
+	"strconv"
+	"strings"
 	"sync"
 	"testing"
 
@@ -15,7 +18,129 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+func TestMatcher_Match(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		testName string
+		name     string
+		wantMsg  string
+		wantErr  bool
+	}{
+		{
+			testName: "matched",
+			name:     "qawatake",
+			wantMsg:  "Hello, world!",
+			wantErr:  false,
+		},
+		{
+			testName: "not matched",
+			name:     "other",
+			wantMsg:  "",
+			wantErr:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.testName, func(t *testing.T) {
+			t.Parallel()
+
+			ts := grpcmock.NewServer(t)
+			conn := ts.ClientConn()
+			client := hello.NewGrpcTestServiceClient(conn)
+
+			// arrange
+			grpcmock.Register(ts, hello.GrpcTestService_Hello_FullMethodName, hello.GrpcTestServiceClient.Hello).
+				Match(func(req *hello.HelloRequest) bool {
+					return req.Name == "qawatake"
+				}).
+				Response(&hello.HelloResponse{
+					Message: "Hello, world!",
+				})
+			ts.Start()
+
+			// act
+			ctx := context.Background()
+			res, err := client.Hello(ctx, &hello.HelloRequest{Name: tt.name})
+
+			// assert
+			if tt.wantErr {
+				if err == nil {
+					t.Error("error expected but got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if res.Message != tt.wantMsg {
+				t.Errorf("unexpected response: %s", res.Message)
+			}
+		})
+	}
+}
+
+func TestMatcher_MatchHeader(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		testName    string
+		headerValue string
+		wantMsg     string
+		wantErr     bool
+	}{
+		{
+			testName:    "matched",
+			headerValue: "true",
+			wantMsg:     "Hello, world!",
+			wantErr:     false,
+		},
+		{
+			testName:    "not matched",
+			headerValue: "false",
+			wantMsg:     "",
+			wantErr:     true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.testName, func(t *testing.T) {
+			t.Parallel()
+
+			ts := grpcmock.NewServer(t)
+			conn := ts.ClientConn()
+			client := hello.NewGrpcTestServiceClient(conn)
+
+			// arrange
+			grpcmock.Register(ts, hello.GrpcTestService_Hello_FullMethodName, hello.GrpcTestServiceClient.Hello).
+				MatchHeader("x-foo", "true").
+				Response(&hello.HelloResponse{
+					Message: "Hello, world!",
+				})
+			ts.Start()
+
+			// act
+			ctx := context.Background()
+			ctx = metadata.AppendToOutgoingContext(ctx, "x-foo", tt.headerValue)
+			res, err := client.Hello(ctx, &hello.HelloRequest{})
+
+			// assert
+			if tt.wantErr {
+				if err == nil {
+					t.Error("error expected but got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if res.Message != tt.wantMsg {
+				t.Errorf("unexpected response: %s", res.Message)
+			}
+		})
+	}
+}
+
 func TestMatcher_Response(t *testing.T) {
+	t.Parallel()
 	ts := grpcmock.NewServer(t)
 	conn := ts.ClientConn()
 	client := hello.NewGrpcTestServiceClient(conn)
@@ -40,7 +165,67 @@ func TestMatcher_Response(t *testing.T) {
 	}
 }
 
+func TestMatcher_Status(t *testing.T) {
+	t.Parallel()
+	ts := grpcmock.NewServer(t)
+	conn := ts.ClientConn()
+	client := hello.NewGrpcTestServiceClient(conn)
+
+	// arrange
+	grpcmock.Register(ts, hello.GrpcTestService_Hello_FullMethodName, hello.GrpcTestServiceClient.Hello).
+		Status(status.New(codes.Unknown, "unknown"))
+	ts.Start()
+
+	// act
+	ctx := context.Background()
+	res, err := client.Hello(ctx, &hello.HelloRequest{Name: "qawatake"})
+
+	// assert
+	if err == nil {
+		t.Error("error expected but got nil")
+	}
+	if res != nil {
+		t.Errorf("want nil, got %v", res)
+	}
+}
+
+func TestMatcher_Handler(t *testing.T) {
+	t.Parallel()
+	ts := grpcmock.NewServer(t)
+	conn := ts.ClientConn()
+	client := hello.NewGrpcTestServiceClient(conn)
+
+	// arrange
+	grpcmock.Register(ts, hello.GrpcTestService_Hello_FullMethodName, hello.GrpcTestServiceClient.Hello).
+		Handler(func(r *hello.HelloRequest, md metadata.MD) (*hello.HelloResponse, error) {
+			name := r.Name
+			count, err := strconv.Atoi(md.Get("x-count")[0])
+			if err != nil {
+				t.Error(err)
+				return nil, err
+			}
+			return &hello.HelloResponse{
+				Message: fmt.Sprintf("Hello, %s%s", name, strings.Repeat("!", count)),
+			}, nil
+		})
+	ts.Start()
+
+	// act
+	ctx := context.Background()
+	ctx = metadata.AppendToOutgoingContext(ctx, "x-count", "3")
+	res, err := client.Hello(ctx, &hello.HelloRequest{Name: "qawatake"})
+
+	// assert
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Message != "Hello, qawatake!!!" {
+		t.Errorf("unexpected response: %s", res.Message)
+	}
+}
+
 func TestMatcher_Requests(t *testing.T) {
+	t.Parallel()
 	ts := grpcmock.NewServer(t)
 	conn := ts.ClientConn()
 	client := hello.NewGrpcTestServiceClient(conn)
@@ -65,6 +250,7 @@ func TestMatcher_Requests(t *testing.T) {
 }
 
 func TestMatcher_Requests_concurrency(t *testing.T) {
+	t.Parallel()
 	ts := grpcmock.NewServer(t)
 	conn := ts.ClientConn()
 	client := hello.NewGrpcTestServiceClient(conn)
@@ -98,6 +284,7 @@ func TestMatcher_Requests_concurrency(t *testing.T) {
 }
 
 func TestMatcher_Requests_multiple_methods(t *testing.T) {
+	t.Parallel()
 	ts := grpcmock.NewServer(t)
 	conn := ts.ClientConn()
 	helloClient := hello.NewGrpcTestServiceClient(conn)
@@ -154,30 +341,7 @@ func TestMatcher_Requests_multiple_methods(t *testing.T) {
 	}
 }
 
-func TestMatcher_Status(t *testing.T) {
-	ts := grpcmock.NewServer(t)
-	conn := ts.ClientConn()
-	client := hello.NewGrpcTestServiceClient(conn)
-
-	// arrange
-	grpcmock.Register(ts, hello.GrpcTestService_Hello_FullMethodName, hello.GrpcTestServiceClient.Hello).
-		Status(status.New(codes.Unknown, "unknown"))
-	ts.Start()
-
-	// act
-	ctx := context.Background()
-	res, err := client.Hello(ctx, &hello.HelloRequest{Name: "qawatake"})
-
-	// assert
-	if err == nil {
-		t.Error("error expected but got nil")
-	}
-	if res != nil {
-		t.Errorf("want nil, got %v", res)
-	}
-}
-
-func TestMatcher_Headers(t *testing.T) {
+func TestRequest_Headers(t *testing.T) {
 	ts := grpcmock.NewServer(t)
 	conn := ts.ClientConn()
 	client := hello.NewGrpcTestServiceClient(conn)
@@ -208,6 +372,7 @@ func TestMatcher_Headers(t *testing.T) {
 }
 
 func TestServer_Addr(t *testing.T) {
+	t.Parallel()
 	ts := grpcmock.NewServer(t)
 	addr := ts.Addr()
 	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
