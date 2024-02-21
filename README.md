@@ -6,6 +6,8 @@
 
 grpcmock provides a mock gRPC server from a generated gRPC client code.
 
+This package currently supports unary RPCs only.
+
 ```go
 func TestClient(t *testing.T) {
   ts := grpcmock.NewServer(t)
@@ -34,12 +36,6 @@ func TestClient(t *testing.T) {
   }
 }
 ```
-
-## Limitations
-
-- [ ] General matching is not supported.
-- [ ] Header matcher is not supported.
-- [ ] Only unary RPCs are supported.
 
 ## References
 
