@@ -20,13 +20,12 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// GetUser RPCのリクエスト
 type GetUserRequest struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	UserId string `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"` // ユーザのID
+	UserId string `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 }
 
 func (x *GetUserRequest) Reset() {
@@ -68,13 +67,12 @@ func (x *GetUserRequest) GetUserId() string {
 	return ""
 }
 
-// GetUser RPCのレスポンス
 type GetUserResponse struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	User *User `protobuf:"bytes,1,opt,name=user,proto3" json:"user,omitempty"` // 取得したユーザ情報
+	User *User `protobuf:"bytes,1,opt,name=user,proto3" json:"user,omitempty"`
 }
 
 func (x *GetUserResponse) Reset() {
@@ -116,13 +114,12 @@ func (x *GetUserResponse) GetUser() *User {
 	return nil
 }
 
-// CreateUser RPCのリクエスト
 type CreateUserRequest struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	User *User `protobuf:"bytes,1,opt,name=user,proto3" json:"user,omitempty"` // 作成するユーザ情報
+	User *User `protobuf:"bytes,1,opt,name=user,proto3" json:"user,omitempty"`
 }
 
 func (x *CreateUserRequest) Reset() {
@@ -164,13 +161,12 @@ func (x *CreateUserRequest) GetUser() *User {
 	return nil
 }
 
-// CreateUser RPCのレスポンス
 type CreateUserResponse struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	UserId string `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"` // 作成されたユーザのID
+	UserId string `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
 }
 
 func (x *CreateUserResponse) Reset() {
@@ -212,15 +208,14 @@ func (x *CreateUserResponse) GetUserId() string {
 	return ""
 }
 
-// ユーザ情報を表すメッセージ
 type User struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	Id    string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`       // ユーザのID
-	Name  string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`   // ユーザの名前
-	Email string `protobuf:"bytes,3,opt,name=email,proto3" json:"email,omitempty"` // ユーザのメールアドレス
+	Id    string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Name  string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Email string `protobuf:"bytes,3,opt,name=email,proto3" json:"email,omitempty"`
 }
 
 func (x *User) Reset() {
