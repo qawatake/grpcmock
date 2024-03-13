@@ -21,8 +21,10 @@ import (
 type Server struct {
 	// [fullMethodName][]*Matcher[I, O]
 	matchers map[string]any
-	listener net.Listener
-	server   *grpc.Server
+	// [ServiceName][MethodName]methodHandler
+	methodHandler map[string]map[string]methodHandler
+	listener      net.Listener
+	server        *grpc.Server
 	// tlsc              *tls.Config
 	// cacert            []byte
 	cc *grpc.ClientConn
@@ -53,11 +55,11 @@ func NewServer(t TB) *Server {
 		return nil
 	}
 	return &Server{
-		server:   grpc.NewServer(),
-		listener: lis,
-		t:        t,
-		matchers: make(map[string]any),
-		// matchers: make(map[string]*matcher),
+		server:        grpc.NewServer(),
+		listener:      lis,
+		t:             t,
+		matchers:      make(map[string]any),
+		methodHandler: make(map[string]map[string]methodHandler),
 	}
 }
 
@@ -80,6 +82,11 @@ func (s *Server) Addr() string {
 }
 
 func (s *Server) Start() {
+	// we must defer registering services because RegisterService must be called at most once per service
+	for serviceName, ms := range s.methodHandler {
+		svc := serviceDesc(serviceName, ms)
+		s.server.RegisterService(svc, nil)
+	}
 	go s.server.Serve(s.listener)
 	// TODO: wait for ready
 }
@@ -106,21 +113,13 @@ func Register[R any, I, O protoreflect.ProtoMessage](s *Server, fullMethodName s
 		},
 	}
 
-	matchers, exists := s.matchers[fullMethodName].([]*Matcher[I, O])
+	if s.methodHandler[serviceName] == nil {
+		s.methodHandler[serviceName] = make(map[string]methodHandler)
+	}
+	s.methodHandler[serviceName][methodName] = newMethodHandler[I, O](s, fullMethodName)
+	matchers, _ := s.matchers[fullMethodName].([]*Matcher[I, O])
 	matchers = append(matchers, m)
 	s.matchers[fullMethodName] = matchers
-	if !exists {
-		s.server.RegisterService(
-			&grpc.ServiceDesc{
-				ServiceName: serviceName,
-				Methods: []grpc.MethodDesc{
-					{
-						MethodName: methodName,
-						Handler:    newUnaryHandler[I, O](s, fullMethodName),
-					},
-				},
-			}, nil)
-	}
 	return m
 }
 
@@ -209,9 +208,9 @@ func (m *Matcher[I, O]) Requests() []*Request[I] {
 	return m.requests
 }
 
-type unaryHandler = func(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error)
+type methodHandler = func(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error)
 
-func newUnaryHandler[I, O protoreflect.ProtoMessage](s *Server, fullMethodName string) unaryHandler {
+func newMethodHandler[I, O protoreflect.ProtoMessage](s *Server, fullMethodName string) methodHandler {
 	return func(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 		md, _ := metadata.FromIncomingContext(ctx)
 		var in I
@@ -241,4 +240,18 @@ func parseFullMethodName(name string) (serviceName, methodName string, err error
 		return "", "", fmt.Errorf("%q is invalid full method name", name)
 	}
 	return ss[1], ss[2], nil
+}
+
+func serviceDesc(serviceName string, methods map[string]methodHandler) *grpc.ServiceDesc {
+	ms := make([]grpc.MethodDesc, 0, len(methods))
+	for methodName, handler := range methods {
+		ms = append(ms, grpc.MethodDesc{
+			MethodName: methodName,
+			Handler:    handler,
+		})
+	}
+	return &grpc.ServiceDesc{
+		ServiceName: serviceName,
+		Methods:     ms,
+	}
 }

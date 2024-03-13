@@ -9,8 +9,9 @@ import (
 	"testing"
 
 	"github.com/qawatake/grpcmock"
-	"github.com/qawatake/grpcmock/testdata/hello"
-	"github.com/qawatake/grpcmock/testdata/routeguide"
+	"github.com/qawatake/grpcmock/testdata/gen/hello"
+	"github.com/qawatake/grpcmock/testdata/gen/routeguide"
+	"github.com/qawatake/grpcmock/testdata/gen/user"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
@@ -446,5 +447,26 @@ func TestServer_Addr(t *testing.T) {
 	}
 	if res.Message != "Hello, world!" {
 		t.Errorf("unexpected response: %s", res.Message)
+	}
+}
+
+func TestRegister_multiple(t *testing.T) {
+	t.Parallel()
+	ts := grpcmock.NewServer(t)
+	conn := ts.ClientConn()
+	client := user.NewUserServiceClient(conn)
+
+	// arrange
+	grpcmock.Register(ts, user.UserService_CreateUser_FullMethodName, user.UserServiceClient.CreateUser)
+	grpcmock.Register(ts, user.UserService_GetUser_FullMethodName, user.UserServiceClient.GetUser)
+	ts.Start()
+
+	// act
+	ctx := context.Background()
+	_, err := client.CreateUser(ctx, &user.CreateUserRequest{User: &user.User{Name: "qawatake"}})
+
+	// assert
+	if err != nil {
+		t.Fatal(err)
 	}
 }
