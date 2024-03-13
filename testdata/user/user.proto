@@ -1,0 +1,41 @@
+syntax = "proto3";
+
+option go_package="./user";
+
+package example;
+
+// ユーザ情報を扱うサービスの定義
+service UserService {
+  // ユーザIDに基づいてユーザ情報を取得する
+  rpc GetUser(GetUserRequest) returns (GetUserResponse);
+
+  // 新しいユーザを作成する
+  rpc CreateUser(CreateUserRequest) returns (CreateUserResponse);
+}
+
+// GetUser RPCのリクエスト
+message GetUserRequest {
+  string user_id = 1; // ユーザのID
+}
+
+// GetUser RPCのレスポンス
+message GetUserResponse {
+  User user = 1; // 取得したユーザ情報
+}
+
+// CreateUser RPCのリクエスト
+message CreateUserRequest {
+  User user = 1; // 作成するユーザ情報
+}
+
+// CreateUser RPCのレスポンス
+message CreateUserResponse {
+  string user_id = 1; // 作成されたユーザのID
+}
+
+// ユーザ情報を表すメッセージ
+message User {
+  string id = 1; // ユーザのID
+  string name = 2; // ユーザの名前
+  string email = 3; // ユーザのメールアドレス
+}

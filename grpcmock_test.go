@@ -9,8 +9,8 @@ import (
 	"testing"
 
 	"github.com/qawatake/grpcmock"
-	"github.com/qawatake/grpcmock/testdata/hello"
-	"github.com/qawatake/grpcmock/testdata/routeguide"
+	"github.com/qawatake/grpcmock/testdata/gen/hello"
+	"github.com/qawatake/grpcmock/testdata/gen/routeguide"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
