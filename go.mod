@@ -1,6 +1,6 @@
 module github.com/qawatake/grpcmock
 
-go 1.25.0
+go 1.26.10
 
 require (
 	google.golang.org/grpc v1.83.2
