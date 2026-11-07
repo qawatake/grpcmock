@@ -1,22 +1,15 @@
 version: 2
+# Version updates are landed by tsugiki in weekly batches (this repository is registered in the
+# tsugiki registry; see the landing-dep-bumps skill, W mode). This file only drives Dependabot
+# security updates: open-pull-requests-limit: 0 stops version update PRs, and security updates have
+# their own fixed limit, so they keep coming. Packages that must move together, and packages held
+# back, are declared in the tsugiki registry, not here.
 updates:
-
-  - package-ecosystem: "gomod"
-    directory: "/"
-    groups:
-      minor-and-patch:
-        update-types:
-          - "patch"
-          - "minor"
+  - package-ecosystem: gomod
+    directory: /
     schedule:
-      interval: "weekly"
-      day: "saturday"
+      interval: weekly
+      day: saturday
       time: "03:00"
-      timezone: "Asia/Tokyo"
-    # Security updates bypass cooldown and arrive as soon as an advisory is published.
-    # Version updates wait for a release to age: patches barely (they rarely break, and
-    # batching them only grows the diff), minors until they have matured.
-    cooldown:
-      semver-patch-days: 7
-      semver-minor-days: 30
-      semver-major-days: 60
+      timezone: Asia/Tokyo
+    open-pull-requests-limit: 0
